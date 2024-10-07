@@ -9,7 +9,7 @@ from faker import Faker
 fake = Faker()
 
 # Your smartlink (or landing page that redirects to the smartlink)
-smartlink_url = 'https://yourmobideasmartlink.com'
+smartlink_url = 'https://tinyurl.com/se-smartlink'
 
 # Set up the browser (use headless to keep it stealth, but visible if needed for debugging)
 options = webdriver.ChromeOptions()
