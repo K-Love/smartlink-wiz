@@ -1,184 +1,139 @@
-import random
 import time
+import random
 import requests
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
-from faker import Faker
 
-# Initialize Faker to generate random user data
-fake = Faker()
-
-# Your smartlink (or landing page that redirects to the smartlink)
-smartlink_url = 'https://tinyurl.com/se-smartlink'
-
-# Set up the browser (use headless to keep it stealth, but visible if needed for debugging)
-options = webdriver.ChromeOptions()
-options.add_argument('headless')
-options.add_argument('window-size=1200x600')
-
-# Random User-Agents to rotate through (simulate different browsers/devices)
-user_agents = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
-]
-
-# Paid rotating proxies (replace with your real proxies later if needed)
-paid_proxies = [
-    'http://user:password@proxy1.example.com:8080',
-    'http://user:password@proxy2.example.com:8080',
-    'http://user:password@proxy3.example.com:8080',
-]
-
-# API URL for free proxies (you can use ProxyScrape)
-free_proxy_api_url = "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http&timeout=1000&country=all"
-
-# Fetch fresh free proxies from the API
-def fetch_free_proxies():
-    try:
-        response = requests.get(free_proxy_api_url)
-        if response.status_code == 200:
-            proxy_list = response.text.strip().split("\n")
-            return [f"http://{proxy}" for proxy in proxy_list if proxy]
-        else:
-            print(f"Failed to fetch free proxies. Status code: {response.status_code}")
-            return []
-    except Exception as e:
-        print(f"Error fetching proxies: {e}")
-        return []
-
-# Combine paid and free proxies (free proxies are fetched dynamically)
-def get_proxy_pool():
-    free_proxies = fetch_free_proxies()  # Fetch free proxies dynamically
-    return paid_proxies + free_proxies  # Combine paid and free proxies
-
-# Initialize browser with proxy
+# Initialize browser with proper ChromeDriver path and options
 def init_browser():
-    user_agent = random.choice(user_agents)
-    proxy = random.choice(get_proxy_pool())
+    options = Options()
+    options.add_argument("--headless")  # Run Chrome in headless mode
+    options.add_argument("--disable-gpu")  # Disable GPU hardware acceleration
+    options.add_argument("--no-sandbox")  # Bypass OS security model
+    options.add_argument("--disable-dev-shm-usage")  # Overcome limited resource problems
+    options.add_argument("--remote-debugging-port=9222")  # Enable remote debugging
+    options.add_argument("--window-size=1920x1080")  # Set window size
+    options.add_argument("--user-data-dir=/tmp/user_data")  # Avoid session issues
+    options.add_argument("--disable-infobars")  # Disable info bar
+    options.add_argument("--disable-extensions")  # Disable extensions
 
-    options.add_argument(f'user-agent={user_agent}')
+    driver_path = r"C:\Users\kevin\OneDrive\Documents\chromedriver-win64\chromedriver-win64\chromedriver.exe"
+    browser = webdriver.Chrome(executable_path=driver_path, options=options)
+    
+    return browser
+
+# Fetch free proxy list from a source
+def fetch_free_proxies():
+    url = 'https://www.sslproxies.org/'
+    response = requests.get(url)
+    proxies = []
+    
+    # Parse proxies (This is a simplified example; you can use BeautifulSoup for a better solution)
+    for line in response.text.splitlines():
+        if 'data-proxy-port' in line:
+            ip = line.split('data-proxy-ip="')[1].split('"')[0]
+            port = line.split('data-proxy-port="')[1].split('"')[0]
+            proxies.append(f'{ip}:{port}')
+    
+    return proxies
+
+# Rotate proxies and restart browser with new proxy
+def init_browser_with_proxy(proxy):
+    options = Options()
     options.add_argument(f'--proxy-server={proxy}')
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--remote-debugging-port=9222")
+    options.add_argument("--window-size=1920x1080")
+    options.add_argument("--user-data-dir=/tmp/user_data")
+    options.add_argument("--disable-infobars")
+    options.add_argument("--disable-extensions")
+    
+    driver_path = r"C:\Users\kevin\OneDrive\Documents\chromedriver-win64\chromedriver-win64\chromedriver.exe"
+    browser = webdriver.Chrome(executable_path=driver_path, options=options)
+    
+    return browser
 
-    return webdriver.Chrome(options=options)
+# Handle captcha using a service like 2Captcha (replace with your API key)
+def solve_captcha(image_element):
+    captcha_image_url = image_element.get_attribute('src')
+    # Send image URL to captcha solving service
+    api_key = "YOUR_2CAPTCHA_API_KEY"
+    url = f"http://2captcha.com/in.php?key={api_key}&method=userrecaptcha&googlekey={captcha_image_url}&pageurl=YOUR_PAGE_URL"
+    captcha_id = requests.get(url).text.split('|')[1]
+    time.sleep(10)  # Wait for captcha to be solved
+    url = f"http://2captcha.com/res.php?key={api_key}&action=get&id={captcha_id}"
+    captcha_solution = requests.get(url).text.split('|')[1]
+    
+    return captcha_solution
 
-# Simulate filling out forms and completing actions
-def complete_cpa_action(browser):
-    # Simulate common form fields
+# Perform form interaction, JavaScript handling, and Ajax calls
+def interact_with_landing_page(browser):
     try:
-        # Fill out an email field
-        email_field = browser.find_element("xpath", '//input[@type="email"]')
-        if email_field:
-            fake_email = fake.email()
-            email_field.send_keys(fake_email)
-            print(f"Filled email: {fake_email}")
-            human_delay(1, 3)
+        wait = WebDriverWait(browser, 10)
+        
+        # Wait and fill in form fields
+        form_field = wait.until(EC.element_to_be_clickable((By.XPATH, "//input[@name='email']")))
+        form_field.send_keys('test@example.com')
 
-        # Fill out a name field if available
-        name_field = browser.find_element("xpath", '//input[@type="text"]')
-        if name_field:
-            fake_name = fake.first_name()
-            name_field.send_keys(fake_name)
-            print(f"Filled name: {fake_name}")
-            human_delay(1, 3)
-
-        # Fill out a phone field if available
-        phone_field = browser.find_element("xpath", '//input[@type="tel"]')
-        if phone_field:
-            fake_phone = fake.phone_number()
-            phone_field.send_keys(fake_phone)
-            print(f"Filled phone: {fake_phone}")
-            human_delay(1, 3)
-
-        # Find and click the submit button
-        submit_button = browser.find_element("xpath", '//button[@type="submit"]')
-        if submit_button:
-            submit_button.click()
-            print("Clicked the submit button")
-            human_delay(5, 7)  # Wait for the action to process
+        # Handle submit action
+        submit_button = browser.find_element(By.XPATH, "//button[@type='submit']")
+        submit_button.click()
+        
+        # Handle any AJAX requests or additional form steps
+        time.sleep(5)  # Adjust sleep for any JS/AJAX delays
 
     except Exception as e:
-        print(f"Error completing CPA action: {e}")
+        print(f"Error interacting with page: {e}")
 
-# Function to simulate human-like delays
-def human_delay(min_sec, max_sec):
-    time.sleep(random.uniform(min_sec, max_sec))
-
-# List of search engines to exploit
-search_engines = ['https://duckduckgo.com/', 'https://www.ecosia.org/']
-
-# List of low-competition, high-intent search queries
-search_queries = [
-    "best deals on latest gadgets",
-    "cheapest insurance rates",
-    "how to make money quickly online",
-    "best credit card deals",
-]
-
-# Function to search on each engine and redirect to your smartlink
-def perform_search_and_redirect(engine, query):
-    browser = init_browser()  # Create a new instance of browser with new proxy for each search
-    browser.get(engine)
-    
-    # Find search box by inspecting page (different search engines use different attributes)
-    if 'duckduckgo' in engine:
-        search_box = browser.find_element("name", "q")  # DuckDuckGo
-    elif 'ecosia' in engine:
-        search_box = browser.find_element("name", "q")  # Ecosia
-
-    # Simulate typing the query into the search box
-    search_box.clear()
-    search_box.send_keys(query)
-    human_delay(2, 5)  # Simulate human typing time
-    search_box.send_keys(Keys.RETURN)
-    
-    # Wait for the results page to load
-    human_delay(3, 7)
-
-    # Select a random result to click (not always the first one)
+# Perform search and redirect on a random search engine
+def perform_search_and_redirect(engine, query, smartlink_url):
     try:
-        result_links = browser.find_elements("xpath", '//a[@href]')  # Finds clickable results
-        if result_links:
-            result_to_click = random.choice(result_links[:5])  # Click one of the top 5 results randomly
-            result_to_click.click()
-            print(f"Clicked result for '{query}' on {engine}")
+        browser = init_browser()  # Create a new instance of browser with new proxy for each search
+        browser.get(engine)
+        
+        # Search for query
+        search_field = WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.NAME, "q")))
+        search_field.send_keys(query)
+        search_field.send_keys(Keys.RETURN)
+        
+        # Wait for results to load and click on the desired result (simulate a user)
+        first_result = WebDriverWait(browser, 10).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a")))
+        first_result.click()
+        
+        # Redirect to the smartlink
+        browser.get(smartlink_url)
 
-            # After clicking, redirect to your smartlink after a delay
-            human_delay(5, 10)
-            browser.get(smartlink_url)
-            print(f"Redirected to Smartlink for '{query}'")
+        # Interact with landing page (AJAX, JS forms, etc.)
+        interact_with_landing_page(browser)
 
-            # Once on the landing page, complete the action
-            complete_cpa_action(browser)
-
-        else:
-            print(f"No results found for '{query}' on {engine}")
-    
     except Exception as e:
         print(f"Error during search and redirect for '{query}' on {engine}: {e}")
-
     finally:
         browser.quit()
 
-# Main execution loop with randomized delays and search order
+# Main function to run the process
 def run_script():
-    # Shuffle search engines and queries to make each iteration unpredictable
-    random.shuffle(search_engines)
-    random.shuffle(search_queries)
+    smartlink_url = "https://tinyurl.com/se-smartlink"
+    proxies = fetch_free_proxies()
 
-    for engine in search_engines:
-        for query in search_queries:
-            perform_search_and_redirect(engine, query)
-            
-            # Randomized delay between searches to prevent bot detection
-            human_delay(60, 300)  # Wait 1 to 5 minutes before the next search
+    search_engines = ['https://www.google.com/', 'https://www.bing.com/', 'https://www.ecosia.org/']
+    search_queries = ['best insurance rates', 'cheapest insurance rates', 'affordable health plans']
 
-            # Occasionally simulate a backtracking action by searching again without clicking
-            if random.random() > 0.8:
-                print(f"Simulating backtracking for '{query}' on {engine}")
-                human_delay(5, 10)
-                perform_search_and_redirect(engine, query)
+    for query in search_queries:
+        for engine in search_engines:
+            proxy = random.choice(proxies)  # Select a random proxy
+            browser = init_browser_with_proxy(proxy)  # Start browser with proxy
+            perform_search_and_redirect(engine, query, smartlink_url)
+            time.sleep(random.uniform(5, 15))  # Random delay between actions
 
+# Execute the script
 if __name__ == "__main__":
     run_script()
